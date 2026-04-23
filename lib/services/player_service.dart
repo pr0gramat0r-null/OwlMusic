@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../models/track.dart';
+import 'youtube_service.dart';
 
 enum PlaybackRepeatMode { off, all, one }
 
@@ -23,7 +25,7 @@ class PlayerService {
   StreamSubscription? _completedSub;
   StreamSubscription? _playingSub;
   StreamSubscription? _bufferingSub;
-  final yt.YoutubeExplode _yt = yt.YoutubeExplode();
+  YouTubeService? _ytService;
 
   Track? get currentTrack =>
       (_currentIndex >= 0 && _currentIndex < _queue.length)
@@ -70,6 +72,10 @@ class PlayerService {
     });
   }
 
+  void setYouTubeService(YouTubeService service) {
+    _ytService = service;
+  }
+
   void setOnStateChanged(VoidCallback callback) {
     _onStateChanged = callback;
   }
@@ -105,12 +111,14 @@ class PlayerService {
     _notify();
 
     final track = _queue[_currentIndex];
+    debugPrint('[Player] === Playing: ${track.title} ===');
 
     try {
       await _downloadAndPlay(track.id);
     } catch (e) {
+      debugPrint('[Player] FAILED: $e');
       _isLoading = false;
-      _error = 'Playback failed';
+      _error = 'Playback failed: $e';
       _notify();
     }
   }
@@ -118,56 +126,86 @@ class PlayerService {
   Future<void> _downloadAndPlay(String videoId) async {
     final tempFile = await _downloadToTemp(videoId);
     if (tempFile != null) {
+      debugPrint('[Player] Opening: ${tempFile.path} (${await tempFile.length()} bytes)');
       await _player.open(mk.Media(tempFile.path));
+
+      await Future.delayed(const Duration(seconds: 5));
+      if (_isLoading && !_player.state.playing) {
+        debugPrint('[Player] Not playing after 5s');
+        _isLoading = false;
+        _error = 'Player could not start';
+        _notify();
+      }
     } else {
       _isLoading = false;
-      _error = 'Could not download audio';
+      _error = 'Could not download audio (rate limited?)';
       _notify();
     }
   }
 
   Future<File?> _downloadToTemp(String videoId) async {
+    if (_ytService == null) return null;
+
     try {
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
-      final audioOnly = manifest.audioOnly;
+      final manifest = await _ytService!.getManifest(videoId);
+      if (manifest == null) return null;
+
+      final audioOnly = manifest.audioOnly.toList();
+      debugPrint('[Player] Streams: ${audioOnly.length}');
+
       if (audioOnly.isEmpty) return null;
 
-      final m4a = audioOnly.where((s) => s.container.name == 'm4a');
-      final streamInfo =
-          m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
+      final m4a = audioOnly.where((s) => s.container.name == 'm4a').toList();
+      final streamInfo = m4a.isNotEmpty
+          ? m4a.withHighestBitrate()
+          : audioOnly.withHighestBitrate();
 
       final ext = streamInfo.container.name;
+      debugPrint('[Player] Format: $ext / ${streamInfo.audioCodec}');
+
       final dir = await getTemporaryDirectory();
       final cacheDir = Directory('${dir.path}/owlmusic_cache');
       if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
 
       final file = File('${cacheDir.path}/$videoId.$ext');
 
-      if (await file.exists() && await file.length() > 0) return file;
+      if (await file.exists() && await file.length() > 0) {
+        debugPrint('[Player] Cache hit: ${await file.length()} bytes');
+        return file;
+      }
 
-      final stream = _yt.videos.streamsClient.get(streamInfo);
-      final fileStream = file.openWrite();
-
+      final ytClient = yt.YoutubeExplode();
       try {
-        await for (final chunk in stream) {
-          fileStream.add(chunk);
+        final stream = ytClient.videos.streamsClient.get(streamInfo);
+        final fileStream = file.openWrite();
+
+        try {
+          await for (final chunk in stream) {
+            fileStream.add(chunk);
+          }
+        } catch (e) {
+          debugPrint('[Player] Download error: $e');
+          await fileStream.close();
+          if (await file.exists()) await file.delete();
+          return null;
         }
-      } catch (_) {
+
+        await fileStream.flush();
         await fileStream.close();
-        if (await file.exists()) await file.delete();
-        return null;
+
+        final size = await file.length();
+        debugPrint('[Player] Downloaded: $size bytes');
+
+        if (size == 0) {
+          await file.delete();
+          return null;
+        }
+        return file;
+      } finally {
+        ytClient.close();
       }
-
-      await fileStream.flush();
-      await fileStream.close();
-
-      if (await file.length() == 0) {
-        await file.delete();
-        return null;
-      }
-
-      return file;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[Player] _downloadToTemp error: $e');
       return null;
     }
   }
@@ -177,17 +215,12 @@ class PlayerService {
       final dir = await getTemporaryDirectory();
       final cacheDir = Directory('${dir.path}/owlmusic_cache');
       if (!await cacheDir.exists()) return;
-
       final entities = await cacheDir.list().toList();
       if (entities.length <= 10) return;
-
       entities.sort((a, b) =>
           File(a.path).lastModifiedSync().compareTo(File(b.path).lastModifiedSync()));
-
       for (int i = 0; i < entities.length - 5; i++) {
-        try {
-          await entities[i].delete();
-        } catch (_) {}
+        try { await entities[i].delete(); } catch (_) {}
       }
     } catch (_) {}
   }
@@ -201,9 +234,7 @@ class PlayerService {
     _notify();
   }
 
-  Future<void> seekTo(Duration position) async =>
-      await _player.seek(position);
-
+  Future<void> seekTo(Duration position) async => await _player.seek(position);
   Future<void> setVolume(double v) async => await _player.setVolume(v * 100);
 
   Future<void> next() async {
@@ -305,6 +336,5 @@ class PlayerService {
     _playingSub?.cancel();
     _bufferingSub?.cancel();
     _player.dispose();
-    _yt.close();
   }
 }

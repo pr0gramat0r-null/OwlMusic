@@ -1,14 +1,85 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../models/track.dart';
 
 enum SearchType { all, music, video }
 
+class _BrowserHttpClient extends http.BaseClient {
+  final http.Client _inner;
+  static const _headers = {
+    'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'cookie': 'CONSENT=YES+cb; VISITOR_INFO1_LIVE=; YSC=; GPS=1',
+    'accept':
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.7',
+    'sec-ch-ua':
+        '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1',
+  };
+
+  _BrowserHttpClient() : _inner = http.Client();
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    request.headers.addAll(_headers);
+    return _inner.send(request);
+  }
+
+  @override
+  void close() => _inner.close();
+}
+
 class YouTubeService {
-  final yt.YoutubeExplode _yt = yt.YoutubeExplode();
+  late final yt.YoutubeExplode _yt;
+  DateTime? _lastRequestTime;
+  static const _minRequestInterval = Duration(milliseconds: 800);
+
+  YouTubeService() {
+    _yt = yt.YoutubeExplode(yt.YoutubeHttpClient(_BrowserHttpClient()));
+  }
+
+  Future<void> _throttle() async {
+    if (_lastRequestTime != null) {
+      final diff = DateTime.now().difference(_lastRequestTime!);
+      if (diff < _minRequestInterval) {
+        await Future.delayed(_minRequestInterval - diff);
+      }
+    }
+    _lastRequestTime = DateTime.now();
+  }
+
+  Future<T> _withRetry<T>(Future<T> Function() fn, {int maxAttempts = 3}) async {
+    for (int i = 0; i < maxAttempts; i++) {
+      try {
+        await _throttle();
+        return await fn();
+      } on yt.RequestLimitExceededException {
+        debugPrint('[YT] Rate limited, attempt ${i + 1}/$maxAttempts');
+        if (i == maxAttempts - 1) rethrow;
+        final delay = Duration(seconds: (i + 1) * 5);
+        debugPrint('[YT] Waiting ${delay.inSeconds}s before retry...');
+        await Future.delayed(delay);
+      } on yt.TransientFailureException {
+        debugPrint('[YT] Transient failure, attempt ${i + 1}/$maxAttempts');
+        if (i == maxAttempts - 1) rethrow;
+        await Future.delayed(Duration(seconds: (i + 1) * 3));
+      }
+    }
+    throw StateError('Unreachable');
+  }
 
   Future<List<Track>> search(String query,
       {int maxResults = 25, SearchType type = SearchType.music}) async {
-    final searchList = await _yt.search.search(query);
+    final searchList = await _withRetry(() => _yt.search.search(query));
     var videos = searchList.whereType<yt.Video>().toList();
     videos = _filterAndSort(videos, type);
 
@@ -55,7 +126,6 @@ class YouTubeService {
     double score = 0.0;
     final t = video.title.toLowerCase();
     final a = video.author.toLowerCase();
-
     if (t.contains('official')) score += 3;
     if (t.contains('lyric')) score += 2;
     if (t.contains('audio')) score += 2;
@@ -87,24 +157,30 @@ class YouTubeService {
     return score;
   }
 
-  Future<String?> getStreamUrl(String videoId) async {
+  Future<yt.StreamManifest?> getManifest(String videoId) async {
     try {
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
-      final audioOnly = manifest.audioOnly;
-      if (audioOnly.isEmpty) return null;
-
-      final m4a = audioOnly.where((s) => s.container.name == 'm4a');
-      final bestAudio =
-          m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
-      return bestAudio.url.toString();
-    } catch (_) {
+      return await _withRetry(
+        () => _yt.videos.streamsClient.getManifest(videoId),
+      );
+    } catch (e) {
+      debugPrint('[YT] getManifest failed: $e');
       return null;
     }
   }
 
+  Future<String?> getStreamUrl(String videoId) async {
+    final manifest = await getManifest(videoId);
+    if (manifest == null) return null;
+    final audioOnly = manifest.audioOnly;
+    if (audioOnly.isEmpty) return null;
+    final m4a = audioOnly.where((s) => s.container.name == 'm4a');
+    final best = m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
+    return best.url.toString();
+  }
+
   Future<Track?> getTrackInfo(String videoId) async {
     try {
-      final video = await _yt.videos.get(videoId);
+      final video = await _withRetry(() => _yt.videos.get(videoId));
       return Track(
         id: video.id.value,
         title: video.title,
