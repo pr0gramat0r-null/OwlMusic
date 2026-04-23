@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/track.dart';
 import '../services/app_state.dart';
 import '../widgets/playlist_tile.dart';
 import '../widgets/track_tile.dart';
@@ -106,7 +107,8 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     final playlists = appState.playlistManager.playlists;
 
     if (_openedPlaylistId != null) {
-      final playlist = appState.playlistManager.getPlaylist(_openedPlaylistId!);
+      final playlist =
+          appState.playlistManager.getPlaylist(_openedPlaylistId!);
       if (playlist == null) {
         _openedPlaylistId = null;
       } else {
@@ -124,20 +126,44 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.queue_music,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.outlineVariant),
-                  const SizedBox(height: 12),
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(Icons.queue_music_rounded,
+                        size: 40,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onPrimaryContainer),
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     'No playlists yet',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.outlineVariant,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Create one to organize your music',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
                         ),
                   ),
                 ],
               ),
             )
           : ListView.builder(
+              padding: const EdgeInsets.only(top: 8, bottom: 80),
               itemCount: playlists.length,
               itemBuilder: (ctx, i) {
                 final pl = playlists[i];
@@ -152,35 +178,62 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showCreatePlaylistDialog,
-        child: const Icon(Icons.add),
+        tooltip: 'Create playlist',
+        child: const Icon(Icons.add_rounded),
       ),
     );
   }
 
   Widget _buildPlaylistDetail(dynamic playlist, AppState appState) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(playlist.name),
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => setState(() => _openedPlaylistId = null),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.play_circle_filled),
-            tooltip: 'Play all',
-            onPressed: () {
-              if (playlist.tracks.isNotEmpty) {
+          if (playlist.tracks.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.play_circle_filled_rounded),
+              tooltip: 'Play all',
+              onPressed: () {
                 appState.playPlaylist(playlist.tracks);
-              }
-            },
-          ),
+              },
+            ),
+          if (playlist.tracks.isNotEmpty)
+              IconButton(
+              icon: const Icon(Icons.shuffle_rounded),
+              tooltip: 'Shuffle play',
+              onPressed: () {
+                final shuffled = List<Track>.of(playlist.tracks)..shuffle();
+                appState.playPlaylist(shuffled);
+              },
+            ),
         ],
       ),
       body: playlist.tracks.isEmpty
-          ? const Center(child: Text('This playlist is empty'))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.music_note_rounded,
+                      size: 48,
+                      color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(height: 12),
+                  Text(
+                    'This playlist is empty',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            )
           : ListView.builder(
+              padding: const EdgeInsets.only(top: 4, bottom: 80),
               itemCount: playlist.tracks.length,
               itemBuilder: (ctx, i) {
                 final track = playlist.tracks[i];
@@ -192,6 +245,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     startIndex: i,
                   ),
                   onDownload: () => appState.downloadTrack(track),
+                  downloadProgress:
+                      appState.getDownloadProgress(track.id),
+                  isDownloaded: appState.isTrackDownloaded(track.id),
                 );
               },
             ),
