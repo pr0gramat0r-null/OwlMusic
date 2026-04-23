@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\jni\src\dartjni.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\jni\src\third_party\global_jni_env.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\jni\src\include\dart_api_dl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\jni\src\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{A34A38B0-713B-31FE-896B-E8A67902BEC4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

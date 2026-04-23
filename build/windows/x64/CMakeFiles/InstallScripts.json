@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"D:/IT/open code/OwlMusic/build/windows/x64/cmake_install.cmake",
+		"D:/IT/open code/OwlMusic/build/windows/x64/flutter/cmake_install.cmake",
+		"D:/IT/open code/OwlMusic/build/windows/x64/runner/cmake_install.cmake",
+		"D:/IT/open code/OwlMusic/build/windows/x64/plugins/media_kit_libs_windows_audio/cmake_install.cmake",
+		"D:/IT/open code/OwlMusic/build/windows/x64/plugins/jni/cmake_install.cmake",
+		"D:/IT/open code/OwlMusic/build/windows/x64/plugins/jni/shared/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,0 +1,28 @@
+^D:\IT\OPEN CODE\OWLMUSIC\BUILD\WINDOWS\X64\CMAKEFILES\8383AA6C4E4EE234929E3AFDA925738E\FLUTTER_WINDOWS.DLL.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -E env FLUTTER_ROOT=D:\Download\FlutterSDK\flutter "PROJECT_DIR=D:\IT\open code\OwlMusic" FLUTTER_ROOT=D:\Download\FlutterSDK\flutter "FLUTTER_EPHEMERAL_DIR=D:\IT\open code\OwlMusic\windows\flutter\ephemeral" "PROJECT_DIR=D:\IT\open code\OwlMusic" "FLUTTER_TARGET=D:\IT\open code\OwlMusic\lib\main.dart" DART_DEFINES=RkxVVFRFUl9WRVJTSU9OPTMuNDEuNg==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049ZGI1MGUyMDE2OA==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049NDI1Y2ZiNTRkMA==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMS40 DART_OBFUSCATION=false TRACK_WIDGET_CREATION=true TREE_SHAKE_ICONS=false "PACKAGE_CONFIG=D:\IT\open code\OwlMusic\.dart_tool\package_config.json" D:/Download/FlutterSDK/flutter/packages/flutter_tools/bin/tool_backend.bat windows-x64 Debug
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\IT\OPEN CODE\OWLMUSIC\BUILD\WINDOWS\X64\CMAKEFILES\FD094624CF28FD6CC042DC4557F4A2BA\FLUTTER_ASSEMBLE.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\IT\OPEN CODE\OWLMUSIC\WINDOWS\FLUTTER\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" "-SD:/IT/open code/OwlMusic/windows" "-BD:/IT/open code/OwlMusic/build/windows/x64" --check-stamp-file "D:/IT/open code/OwlMusic/build/windows/x64/flutter/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\IT\open code\OwlMusic\build\windows\x64\CMakeFiles\fd094624cf28fd6cc042dc4557f4a2ba\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{28410A20-A115-3A58-888A-47C523D827BF}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

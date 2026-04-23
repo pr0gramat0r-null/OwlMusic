@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\media_kit_libs_windows_audio\windows\media_kit_libs_windows_audio_plugin_c_api.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\media_kit_libs_windows_audio\windows\include\media_kit_libs_windows_audio\media_kit_libs_windows_audio_plugin_c_api.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\IT\open code\OwlMusic\windows\flutter\ephemeral\.plugin_symlinks\media_kit_libs_windows_audio\windows\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{7B1F61F9-8C89-3D6F-BF61-B000A02A82BD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{A34A38B0-713B-31FE-896B-E8A67902BEC4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
