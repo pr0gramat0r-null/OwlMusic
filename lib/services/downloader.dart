@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
@@ -40,7 +41,13 @@ class Downloader {
       _report(track.id, 0.05, 'Fetching stream info...');
 
       print('Fetching stream manifest for ${track.id}...');
-      final manifest = await _yt.videos.streamsClient.getManifest(track.id);
+      
+      // Add timeout for manifest fetch
+      final manifest = await Future.any([
+        _yt.videos.streamsClient.getManifest(track.id),
+        Future.delayed(const Duration(seconds: 30), () => throw TimeoutException('Manifest fetch timeout'))
+      ]) as yt.StreamManifest;
+      
       final audioOnly = manifest.audioOnly;
       if (audioOnly.isEmpty) {
         _report(track.id, 0, 'No audio stream available');
@@ -59,7 +66,7 @@ class Downloader {
       // Check if file exists and is valid
       if (await file.exists()) {
         final length = await file.length();
-        if (length > 0) {
+        if (length > 1024) {  // At least 1KB to be considered valid
           _report(track.id, 1.0, 'Already downloaded');
           print('File already downloaded: ${file.path} ($length bytes)');
           return file.path;
@@ -101,10 +108,10 @@ class Downloader {
 
       // Verify the downloaded file
       final finalLength = await file.length();
-      if (finalLength == 0) {
-        print('Downloaded file is empty for ${track.id}');
+      if (finalLength < 1024) {
+        print('Downloaded file is empty or too small for ${track.id} ($finalLength bytes)');
         await file.delete();
-        throw Exception('Downloaded file is empty');
+        throw Exception('Downloaded file is empty or too small');
       }
 
       print('Successfully downloaded ${track.id} to ${file.path} ($finalLength bytes)');

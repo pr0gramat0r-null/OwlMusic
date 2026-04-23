@@ -23,7 +23,8 @@ class PlayerService {
   StreamSubscription? _completedSub;
   StreamSubscription? _playingSub;
   StreamSubscription? _bufferingSub;
-  final yt.YoutubeExplode _yt = yt.YoutubeExplode();
+  StreamSubscription? _errorSub;
+  late final yt.YoutubeExplode _yt;
 
   Track? get currentTrack =>
       (_currentIndex >= 0 && _currentIndex < _queue.length)
@@ -45,6 +46,7 @@ class PlayerService {
   Stream<Duration> get durationStream => _player.stream.duration;
 
   PlayerService() {
+    _yt = yt.YoutubeExplode();
     _player = mk.Player(
       configuration: const mk.PlayerConfiguration(title: 'OwlMusic'),
     );
@@ -65,6 +67,15 @@ class PlayerService {
       if (!buffering && _isLoading && _player.state.playing) {
         _isLoading = false;
         _error = null;
+        _notify();
+      }
+    });
+
+    _errorSub = _player.stream.error.listen((error) {
+      if (error != null) {
+        print('Player error: $error');
+        _isLoading = false;
+        _error = 'Playback error: $error';
         _notify();
       }
     });
@@ -142,7 +153,13 @@ class PlayerService {
   Future<File?> _downloadToTemp(String videoId) async {
     try {
       print('Fetching stream manifest for $videoId...');
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
+      
+      // Add timeout for manifest fetch
+      final manifest = await Future.any([
+        _yt.videos.streamsClient.getManifest(videoId),
+        Future.delayed(const Duration(seconds: 30), () => throw TimeoutException('Manifest fetch timeout'))
+      ]) as yt.StreamManifest;
+      
       final audioOnly = manifest.audioOnly;
       if (audioOnly.isEmpty) {
         print('No audio stream available for $videoId');
@@ -163,7 +180,7 @@ class PlayerService {
       // Check if file exists and is valid
       if (await file.exists()) {
         final length = await file.length();
-        if (length > 0) {
+        if (length > 1024) {  // At least 1KB to be considered valid
           print('Cache hit for $videoId (${length} bytes)');
           return file;
         } else {
@@ -194,8 +211,9 @@ class PlayerService {
       await fileStream.close();
 
       // Verify the downloaded file
-      if (await file.length() == 0) {
-        print('Downloaded file is empty for $videoId');
+      final finalLength = await file.length();
+      if (finalLength < 1024) {
+        print('Downloaded file is empty or too small for $videoId ($finalLength bytes)');
         await file.delete();
         return null;
       }
@@ -348,6 +366,7 @@ class PlayerService {
     _completedSub?.cancel();
     _playingSub?.cancel();
     _bufferingSub?.cancel();
+    _errorSub?.cancel();
     _player.dispose();
     _yt.close();
   }

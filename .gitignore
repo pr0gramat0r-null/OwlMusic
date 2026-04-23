@@ -1,27 +1,29 @@
 ```
 # Dependencies
-.dart_tool/
-.build/
-.dependencies/
+.pub/
+.buildlog
+.packages
 
-# Logs and temp files
-*.log
+# Generated plugin files
+lib/generated_plugin_registrant.dart
+
+# Coverage
+coverage/
+
+# Temporary files
 *.tmp
-*.swp
+*.temp
+*.log
 
 # Environment
 .env
 .env.local
-*.env.*
-
-# Editor/IDE
-.vscode/
-.idea/
-*.iml
-*.ipr
-*.iws
+.env.*
 
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Dart tooling
+.dart_tool/
 ```
