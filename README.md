@@ -10,4 +10,6 @@
 
 # Started
 
-Start on Windows: ``` flutter run -d windows ``` or started .exe file on this path (if this file to by created): ...\owlmusic\build\windows\x64\runner\Release\owlmusic.exe
+Start on Windows: ` flutter run -d windows `
+   or started .exe file on this path (if this file to by created): 
+      \owlmusic\build\windows\x64\runner\Release\owlmusic.exe

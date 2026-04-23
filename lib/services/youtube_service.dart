@@ -9,9 +9,7 @@ class YouTubeService {
   Future<List<Track>> search(String query,
       {int maxResults = 25, SearchType type = SearchType.music}) async {
     final searchList = await _yt.search.search(query);
-
     var videos = searchList.whereType<yt.Video>().toList();
-
     videos = _filterAndSort(videos, type);
 
     final tracks = <Track>[];
@@ -25,7 +23,6 @@ class YouTubeService {
         duration: video.duration,
       ));
     }
-
     return tracks;
   }
 
@@ -43,51 +40,42 @@ class YouTubeService {
           }
           return true;
         }).toList();
-
-        filtered.sort((a, b) {
-          final scoreA = _musicScore(a);
-          final scoreB = _musicScore(b);
-          return scoreB.compareTo(scoreA);
-        });
-
+        filtered.sort((a, b) => _musicScore(b).compareTo(_musicScore(a)));
         return filtered;
       case SearchType.video:
-        final filtered = videos.where((v) {
+        return videos.where((v) {
           final dur = v.duration;
           if (dur != null && dur.inSeconds < 10) return false;
           return true;
         }).toList();
-        return filtered;
     }
   }
 
   double _musicScore(yt.Video video) {
     double score = 0.0;
-    final lowerTitle = video.title.toLowerCase();
-    final lowerAuthor = video.author.toLowerCase();
+    final t = video.title.toLowerCase();
+    final a = video.author.toLowerCase();
 
-    if (lowerTitle.contains('official')) score += 3;
-    if (lowerTitle.contains('lyric')) score += 2;
-    if (lowerTitle.contains('audio')) score += 2;
-    if (lowerTitle.contains('music video')) score += 2;
-    if (lowerTitle.contains('mv')) score += 1;
-    if (lowerTitle.contains('cover')) score += 1;
-    if (lowerTitle.contains('remix')) score += 1;
-    if (lowerTitle.contains('feat') || lowerTitle.contains('ft.')) score += 1;
-    if (lowerAuthor.contains('vevo')) score += 3;
-    if (lowerAuthor.contains('official')) score += 2;
-    if (lowerAuthor.contains('topic')) score += 2;
-    if (lowerAuthor.contains('music')) score += 1;
-    if (lowerAuthor.contains('records')) score += 1;
-
-    if (lowerTitle.contains('trailer') ||
-        lowerTitle.contains('tutorial') ||
-        lowerTitle.contains('review') ||
-        lowerTitle.contains('vlog') ||
-        lowerTitle.contains('reaction')) {
+    if (t.contains('official')) score += 3;
+    if (t.contains('lyric')) score += 2;
+    if (t.contains('audio')) score += 2;
+    if (t.contains('music video')) score += 2;
+    if (t.contains('mv')) score += 1;
+    if (t.contains('cover')) score += 1;
+    if (t.contains('remix')) score += 1;
+    if (t.contains('feat') || t.contains('ft.')) score += 1;
+    if (a.contains('vevo')) score += 3;
+    if (a.contains('official')) score += 2;
+    if (a.contains('topic')) score += 2;
+    if (a.contains('music')) score += 1;
+    if (a.contains('records')) score += 1;
+    if (t.contains('trailer') ||
+        t.contains('tutorial') ||
+        t.contains('review') ||
+        t.contains('vlog') ||
+        t.contains('reaction')) {
       score -= 5;
     }
-
     if (video.duration != null) {
       final secs = video.duration!.inSeconds;
       if (secs >= 120 && secs <= 480) {
@@ -96,17 +84,18 @@ class YouTubeService {
         score += 1;
       }
     }
-
     return score;
   }
 
   Future<String?> getStreamUrl(String videoId) async {
     try {
-      final manifest =
-          await _yt.videos.streamsClient.getManifest(videoId);
+      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
       final audioOnly = manifest.audioOnly;
       if (audioOnly.isEmpty) return null;
-      final bestAudio = audioOnly.withHighestBitrate();
+
+      final m4a = audioOnly.where((s) => s.container.name == 'm4a');
+      final bestAudio =
+          m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
       return bestAudio.url.toString();
     } catch (_) {
       return null;

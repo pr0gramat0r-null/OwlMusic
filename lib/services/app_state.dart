@@ -33,7 +33,6 @@ class AppState extends ChangeNotifier {
     required this.downloader,
   }) {
     playerService.setOnStateChanged(_onPlayerStateChanged);
-    playerService.setUrlResolver(youtubeService.getStreamUrl);
     downloader.setOnProgress(_onDownloadProgress);
   }
 

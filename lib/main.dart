@@ -182,7 +182,7 @@ class _MainNavigatorState extends State<MainNavigator> {
                       )
                     else
                       Text(
-                        track.artist ?? '',
+                        track.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
