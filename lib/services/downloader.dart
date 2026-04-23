@@ -23,8 +23,9 @@ class Downloader {
       try {
         return await _downloadOnce(track);
       } catch (e) {
+        print('Download attempt ${attempt + 1} failed for ${track.id}: $e');
         if (attempt == maxRetries - 1) {
-          _report(track.id, 0, 'Error: $e');
+          _report(track.id, 0, 'Error: ${e.toString()}');
           return null;
         }
         _report(track.id, 0.05, 'Retrying (${attempt + 2}/$maxRetries)...');
@@ -35,61 +36,85 @@ class Downloader {
   }
 
   Future<String?> _downloadOnce(Track track) async {
-    _report(track.id, 0.05, 'Fetching stream info...');
-
-    final manifest = await _yt.videos.streamsClient.getManifest(track.id);
-    final audioOnly = manifest.audioOnly;
-    if (audioOnly.isEmpty) {
-      _report(track.id, 0, 'No audio stream available');
-      return null;
-    }
-
-    final m4a = audioOnly.where((s) => s.container.name == 'm4a');
-    final streamInfo =
-        m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
-
-    final ext = streamInfo.container.name;
-    final dir = await _getDownloadDir();
-    final file = File('${dir.path}/${track.id}.$ext');
-
-    if (await file.exists() && await file.length() > 0) {
-      _report(track.id, 1.0, 'Already downloaded');
-      return file.path;
-    }
-
-    _report(track.id, 0.1, 'Downloading...');
-
-    final stream = _yt.videos.streamsClient.get(streamInfo);
-    final fileStream = file.openWrite();
-    final totalBytes = streamInfo.size.totalBytes;
-
-    int downloadedBytes = 0;
     try {
-      await for (final chunk in stream) {
-        fileStream.add(chunk);
-        downloadedBytes += chunk.length;
-        if (totalBytes > 0) {
-          final pct = downloadedBytes / totalBytes;
-          final pctInt = (pct * 100).toInt();
-          _report(track.id, 0.1 + pct * 0.85, 'Downloading $pctInt%...');
+      _report(track.id, 0.05, 'Fetching stream info...');
+
+      print('Fetching stream manifest for ${track.id}...');
+      final manifest = await _yt.videos.streamsClient.getManifest(track.id);
+      final audioOnly = manifest.audioOnly;
+      if (audioOnly.isEmpty) {
+        _report(track.id, 0, 'No audio stream available');
+        print('No audio stream available for ${track.id}');
+        return null;
+      }
+
+      final m4a = audioOnly.where((s) => s.container.name == 'm4a');
+      final streamInfo =
+          m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
+
+      final ext = streamInfo.container.name;
+      final dir = await _getDownloadDir();
+      final file = File('${dir.path}/${track.id}.$ext');
+
+      // Check if file exists and is valid
+      if (await file.exists()) {
+        final length = await file.length();
+        if (length > 0) {
+          _report(track.id, 1.0, 'Already downloaded');
+          print('File already downloaded: ${file.path} ($length bytes)');
+          return file.path;
+        } else {
+          // Delete corrupted/empty file
+          print('Deleting corrupted file: ${file.path}');
+          await file.delete();
         }
       }
-    } catch (e) {
+
+      _report(track.id, 0.1, 'Downloading...');
+      print('Downloading audio for ${track.id}...');
+
+      final stream = _yt.videos.streamsClient.get(streamInfo);
+      final fileStream = file.openWrite();
+      int totalBytes = 0;
+      final totalBytesExpected = streamInfo.size.totalBytes;
+
+      try {
+        await for (final chunk in stream) {
+          fileStream.add(chunk);
+          totalBytes += chunk.length;
+          if (totalBytesExpected > 0) {
+            final pct = totalBytes / totalBytesExpected;
+            final pctInt = (pct * 100).toInt();
+            _report(track.id, 0.1 + pct * 0.85, 'Downloading $pctInt%...');
+          }
+        }
+      } catch (e) {
+        print('Download interrupted for ${track.id}: $e');
+        await fileStream.close();
+        if (await file.exists()) await file.delete();
+        _report(track.id, 0, 'Download interrupted: ${e.toString()}');
+        rethrow;
+      }
+
+      await fileStream.flush();
       await fileStream.close();
-      if (await file.exists()) await file.delete();
-      rethrow;
+
+      // Verify the downloaded file
+      final finalLength = await file.length();
+      if (finalLength == 0) {
+        print('Downloaded file is empty for ${track.id}');
+        await file.delete();
+        throw Exception('Downloaded file is empty');
+      }
+
+      print('Successfully downloaded ${track.id} to ${file.path} ($finalLength bytes)');
+      _report(track.id, 1.0, 'Done');
+      return file.path;
+    } catch (e) {
+      print('Download error for ${track.id}: $e');
+      _report(track.id, 0, 'Error: ${e.toString()}');
+      return null;
     }
-
-    await fileStream.flush();
-    await fileStream.close();
-
-    if (await file.length() == 0) {
-      await file.delete();
-      throw Exception('Downloaded file is empty');
-    }
-
-    _report(track.id, 1.0, 'Done');
-    return file.path;
   }
 
   Future<List<String>> downloadPlaylist(List<Track> tracks) async {

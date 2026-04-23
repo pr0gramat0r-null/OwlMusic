@@ -109,28 +109,45 @@ class PlayerService {
     try {
       await _downloadAndPlay(track.id);
     } catch (e) {
+      print('Playback error for ${track.id}: $e');
       _isLoading = false;
-      _error = 'Playback failed';
+      _error = 'Playback failed: $e';
       _notify();
     }
   }
 
   Future<void> _downloadAndPlay(String videoId) async {
-    final tempFile = await _downloadToTemp(videoId);
-    if (tempFile != null) {
-      await _player.open(mk.Media(tempFile.path));
-    } else {
+    try {
+      // Clean old cache first to free up space
+      await _cleanOldCache();
+      
+      final tempFile = await _downloadToTemp(videoId);
+      if (tempFile != null && await tempFile.exists() && await tempFile.length() > 0) {
+        print('Opening media file: ${tempFile.path}');
+        await _player.open(mk.Media(tempFile.path));
+      } else {
+        print('Could not download audio for $videoId');
+        _isLoading = false;
+        _error = 'Could not download audio. Please try again.';
+        _notify();
+      }
+    } catch (e) {
+      print('Error in _downloadAndPlay: $e');
       _isLoading = false;
-      _error = 'Could not download audio';
+      _error = 'Playback error: ${e.toString()}';
       _notify();
     }
   }
 
   Future<File?> _downloadToTemp(String videoId) async {
     try {
+      print('Fetching stream manifest for $videoId...');
       final manifest = await _yt.videos.streamsClient.getManifest(videoId);
       final audioOnly = manifest.audioOnly;
-      if (audioOnly.isEmpty) return null;
+      if (audioOnly.isEmpty) {
+        print('No audio stream available for $videoId');
+        return null;
+      }
 
       final m4a = audioOnly.where((s) => s.container.name == 'm4a');
       final streamInfo =
@@ -143,16 +160,31 @@ class PlayerService {
 
       final file = File('${cacheDir.path}/$videoId.$ext');
 
-      if (await file.exists() && await file.length() > 0) return file;
+      // Check if file exists and is valid
+      if (await file.exists()) {
+        final length = await file.length();
+        if (length > 0) {
+          print('Cache hit for $videoId (${length} bytes)');
+          return file;
+        } else {
+          // Delete empty/corrupted file
+          print('Deleting corrupted cache file for $videoId');
+          await file.delete();
+        }
+      }
 
+      print('Downloading audio for $videoId...');
       final stream = _yt.videos.streamsClient.get(streamInfo);
       final fileStream = file.openWrite();
+      int totalBytes = 0;
 
       try {
         await for (final chunk in stream) {
           fileStream.add(chunk);
+          totalBytes += chunk.length;
         }
-      } catch (_) {
+      } catch (e) {
+        print('Download error for $videoId: $e');
         await fileStream.close();
         if (await file.exists()) await file.delete();
         return null;
@@ -161,13 +193,17 @@ class PlayerService {
       await fileStream.flush();
       await fileStream.close();
 
+      // Verify the downloaded file
       if (await file.length() == 0) {
+        print('Downloaded file is empty for $videoId');
         await file.delete();
         return null;
       }
 
+      print('Successfully downloaded $videoId to ${file.path} ($totalBytes bytes)');
       return file;
-    } catch (_) {
+    } catch (e) {
+      print('Download failed for $videoId: $e');
       return null;
     }
   }
@@ -179,17 +215,25 @@ class PlayerService {
       if (!await cacheDir.exists()) return;
 
       final entities = await cacheDir.list().toList();
-      if (entities.length <= 10) return;
+      // Keep at least 20 files to avoid excessive cleanup
+      if (entities.length <= 20) return;
 
+      // Sort by last modified time (oldest first)
       entities.sort((a, b) =>
           File(a.path).lastModifiedSync().compareTo(File(b.path).lastModifiedSync()));
 
-      for (int i = 0; i < entities.length - 5; i++) {
+      // Remove oldest files, keeping the 15 most recent
+      for (int i = 0; i < entities.length - 15; i++) {
         try {
           await entities[i].delete();
-        } catch (_) {}
+          print('Cleaned old cache file: ${entities[i].path}');
+        } catch (e) {
+          print('Failed to delete cache file: $e');
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Error cleaning cache: $e');
+    }
   }
 
   Future<void> resume() async => await _player.play();
