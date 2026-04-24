@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
@@ -168,14 +169,70 @@ class YouTubeService {
     }
   }
 
+  yt.AudioOnlyStreamInfo? pickBestAudio(yt.StreamManifest manifest) {
+    final audioOnly = manifest.audioOnly.toList();
+    if (audioOnly.isEmpty) return null;
+    final m4a = audioOnly.where((s) => s.container.name == 'm4a').toList();
+    return m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
+  }
+
   Future<String?> getStreamUrl(String videoId) async {
     final manifest = await getManifest(videoId);
     if (manifest == null) return null;
-    final audioOnly = manifest.audioOnly;
-    if (audioOnly.isEmpty) return null;
-    final m4a = audioOnly.where((s) => s.container.name == 'm4a');
-    final best = m4a.isNotEmpty ? m4a.withHighestBitrate() : audioOnly.withHighestBitrate();
-    return best.url.toString();
+    final best = pickBestAudio(manifest);
+    return best?.url.toString();
+  }
+
+  Future<File?> downloadBestAudio(
+    String videoId,
+    File destination, {
+    void Function(double progress)? onProgress,
+  }) async {
+    try {
+      final manifest = await getManifest(videoId);
+      if (manifest == null) return null;
+      final streamInfo = pickBestAudio(manifest);
+      if (streamInfo == null) return null;
+
+      final tmpPath = '${destination.path}.part';
+      final tmpFile = File(tmpPath);
+      if (await tmpFile.exists()) {
+        await tmpFile.delete();
+      }
+
+      final fileStream = tmpFile.openWrite();
+      final totalBytes = streamInfo.size.totalBytes;
+      var downloadedBytes = 0;
+
+      try {
+        final stream = _yt.videos.streamsClient.get(streamInfo);
+        await for (final chunk in stream) {
+          fileStream.add(chunk);
+          downloadedBytes += chunk.length;
+          if (totalBytes > 0 && onProgress != null) {
+            final progress = downloadedBytes / totalBytes;
+            onProgress(progress.clamp(0.0, 1.0));
+          }
+        }
+      } finally {
+        await fileStream.flush();
+        await fileStream.close();
+      }
+
+      if (!await tmpFile.exists() || await tmpFile.length() == 0) {
+        return null;
+      }
+
+      if (await destination.exists()) {
+        await destination.delete();
+      }
+      await tmpFile.rename(destination.path);
+      onProgress?.call(1.0);
+      return destination;
+    } catch (e) {
+      debugPrint('[YT] downloadBestAudio failed: $e');
+      return null;
+    }
   }
 
   Future<Track?> getTrackInfo(String videoId) async {
