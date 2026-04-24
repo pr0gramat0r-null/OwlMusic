@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../models/track.dart';
 import 'youtube_service.dart';
 
@@ -35,7 +34,7 @@ class Downloader {
           return null;
         }
         _report(track.id, 0.05, 'Retrying (${attempt + 2}/$maxRetries)...');
-        await Future.delayed(Duration(seconds: (attempt + 1) * 5));
+        await Future.delayed(Duration(seconds: (attempt + 1) * 3));
       }
     }
     return null;
@@ -47,81 +46,41 @@ class Downloader {
       return null;
     }
 
-    _report(track.id, 0.05, 'Fetching stream info...');
-
-    final manifest = await _ytService!.getManifest(track.id);
-    if (manifest == null) {
-      _report(track.id, 0, 'Could not get manifest');
-      return null;
-    }
-
-    final audioOnly = manifest.audioOnly.toList();
-    debugPrint('[Downloader] Audio streams: ${audioOnly.length}');
-
-    if (audioOnly.isEmpty) {
-      _report(track.id, 0, 'No audio stream');
-      return null;
-    }
-
-    final m4a = audioOnly.where((s) => s.container.name == 'm4a').toList();
-    final streamInfo = m4a.isNotEmpty
-        ? m4a.withHighestBitrate()
-        : audioOnly.withHighestBitrate();
-
-    final ext = streamInfo.container.name;
-    debugPrint('[Downloader] Format: $ext / ${streamInfo.audioCodec}');
-
     final dir = await _getDownloadDir();
-    final file = File('${dir.path}/${track.id}.$ext');
+    final file = File('${dir.path}/${track.id}.m4a');
 
     if (await file.exists() && await file.length() > 0) {
-      debugPrint('[Downloader] Exists: ${await file.length()} bytes');
       _report(track.id, 1.0, 'Already downloaded');
       return file.path;
     }
 
     _report(track.id, 0.1, 'Downloading...');
+    final downloadedFile = await _ytService!.downloadBestAudio(
+      track.id,
+      file,
+      onProgress: (progress) {
+        _report(
+          track.id,
+          0.1 + progress * 0.9,
+          'Downloading ${(progress * 100).toStringAsFixed(0)}%...',
+        );
+      },
+    );
 
-    final ytClient = yt.YoutubeExplode();
-    try {
-      final stream = ytClient.videos.streamsClient.get(streamInfo);
-      final fileStream = file.openWrite();
-      final totalBytes = streamInfo.size.totalBytes;
-      int downloadedBytes = 0;
-
-      try {
-        await for (final chunk in stream) {
-          fileStream.add(chunk);
-          downloadedBytes += chunk.length;
-          if (totalBytes > 0) {
-            final pct = downloadedBytes / totalBytes;
-            _report(track.id, 0.1 + pct * 0.85,
-                'Downloading ${(pct * 100).toInt()}%...');
-          }
-        }
-      } catch (e) {
-        debugPrint('[Downloader] Stream error: $e');
-        await fileStream.close();
-        if (await file.exists()) await file.delete();
-        rethrow;
-      }
-
-      await fileStream.flush();
-      await fileStream.close();
-
-      final fileSize = await file.length();
-      debugPrint('[Downloader] Done: $fileSize bytes');
-
-      if (fileSize == 0) {
-        await file.delete();
-        throw Exception('Empty file');
-      }
-
-      _report(track.id, 1.0, 'Done');
-      return file.path;
-    } finally {
-      ytClient.close();
+    if (downloadedFile == null || !await downloadedFile.exists()) {
+      _report(track.id, 0, 'Download failed');
+      return null;
     }
+
+    final bytes = await downloadedFile.length();
+    if (bytes == 0) {
+      await downloadedFile.delete();
+      _report(track.id, 0, 'Downloaded empty file');
+      return null;
+    }
+
+    _report(track.id, 1.0, 'Done');
+    return downloadedFile.path;
   }
 
   Future<List<String>> downloadPlaylist(List<Track> tracks) async {

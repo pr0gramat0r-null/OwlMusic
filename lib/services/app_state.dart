@@ -119,7 +119,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> playPlaylist(List<Track> tracks, {int startIndex = 0}) async {
-    playerService.setQueue(tracks, startIndex: startIndex);
+    await playerService.setQueue(tracks, startIndex: startIndex);
     if (tracks.isNotEmpty && startIndex < tracks.length) {
       _addToHistory(tracks[startIndex]);
     }
@@ -195,7 +195,7 @@ class AppState extends ChangeNotifier {
         _searchCache =
             (data['searchCache'] as List?)?.cast<String>() ?? [];
         final typeIdx = data['searchType'] as int? ?? 1;
-        _searchType = SearchType.values[typeIdx.clamp(0, SearchType.values.length - 1)];
+        _searchType = SearchType.values[typeIdx.clamp(0, SearchType.values.length - 1).toInt()];
       }
     } catch (_) {}
   }

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:path_provider/path_provider.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 import '../models/track.dart';
 import 'youtube_service.dart';
 
@@ -26,11 +25,10 @@ class PlayerService {
   StreamSubscription? _playingSub;
   StreamSubscription? _bufferingSub;
   YouTubeService? _ytService;
+  int _playRequestId = 0;
 
   Track? get currentTrack =>
-      (_currentIndex >= 0 && _currentIndex < _queue.length)
-          ? _queue[_currentIndex]
-          : null;
+      (_currentIndex >= 0 && _currentIndex < _queue.length) ? _queue[_currentIndex] : null;
 
   List<Track> get queue => List.unmodifiable(_queue);
   int get currentIndex => _currentIndex;
@@ -82,11 +80,12 @@ class PlayerService {
 
   void _notify() => _onStateChanged?.call();
 
-  void setQueue(List<Track> tracks, {int startIndex = 0}) {
+  Future<void> setQueue(List<Track> tracks, {int startIndex = 0}) async {
+    if (tracks.isEmpty) return;
     _queue = List.from(tracks);
-    _currentIndex = startIndex;
+    _currentIndex = startIndex.clamp(0, _queue.length - 1).toInt();
     if (_shuffle) _regenerateShuffleOrder();
-    _playCurrent();
+    await _playCurrent();
   }
 
   void addToQueue(Track track) => _queue.add(track);
@@ -106,104 +105,66 @@ class PlayerService {
   Future<void> _playCurrent() async {
     if (_currentIndex < 0 || _currentIndex >= _queue.length) return;
 
+    final requestId = ++_playRequestId;
     _isLoading = true;
     _error = null;
     _notify();
 
     final track = _queue[_currentIndex];
-    debugPrint('[Player] === Playing: ${track.title} ===');
+    debugPrint('[Player] === Playing: ${track.title} (${track.id}) ===');
 
     try {
-      await _downloadAndPlay(track.id);
+      final opened = await _openBestSource(track.id, requestId);
+      if (!opened && requestId == _playRequestId) {
+        _isLoading = false;
+        _error = 'Could not load audio stream for this track';
+        _notify();
+      }
     } catch (e) {
       debugPrint('[Player] FAILED: $e');
-      _isLoading = false;
-      _error = 'Playback failed: $e';
-      _notify();
+      if (requestId == _playRequestId) {
+        _isLoading = false;
+        _error = 'Playback failed: $e';
+        _notify();
+      }
     }
   }
 
-  Future<void> _downloadAndPlay(String videoId) async {
+  Future<bool> _openBestSource(String videoId, int requestId) async {
     final tempFile = await _downloadToTemp(videoId);
-    if (tempFile != null) {
-      debugPrint('[Player] Opening: ${tempFile.path} (${await tempFile.length()} bytes)');
-      await _player.open(mk.Media(tempFile.path));
+    if (requestId != _playRequestId) return true;
 
-      await Future.delayed(const Duration(seconds: 5));
-      if (_isLoading && !_player.state.playing) {
-        debugPrint('[Player] Not playing after 5s');
-        _isLoading = false;
-        _error = 'Player could not start';
-        _notify();
-      }
-    } else {
-      _isLoading = false;
-      _error = 'Could not download audio (rate limited?)';
-      _notify();
+    if (tempFile != null) {
+      debugPrint('[Player] Opening cached file: ${tempFile.path}');
+      await _player.open(mk.Media(tempFile.path));
+      return true;
     }
+
+    final streamUrl = await _ytService?.getStreamUrl(videoId);
+    if (requestId != _playRequestId) return true;
+    if (streamUrl == null || streamUrl.isEmpty) {
+      return false;
+    }
+
+    debugPrint('[Player] Fallback to stream URL');
+    await _player.open(mk.Media(streamUrl));
+    return true;
   }
 
   Future<File?> _downloadToTemp(String videoId) async {
     if (_ytService == null) return null;
 
     try {
-      final manifest = await _ytService!.getManifest(videoId);
-      if (manifest == null) return null;
-
-      final audioOnly = manifest.audioOnly.toList();
-      debugPrint('[Player] Streams: ${audioOnly.length}');
-
-      if (audioOnly.isEmpty) return null;
-
-      final m4a = audioOnly.where((s) => s.container.name == 'm4a').toList();
-      final streamInfo = m4a.isNotEmpty
-          ? m4a.withHighestBitrate()
-          : audioOnly.withHighestBitrate();
-
-      final ext = streamInfo.container.name;
-      debugPrint('[Player] Format: $ext / ${streamInfo.audioCodec}');
-
       final dir = await getTemporaryDirectory();
       final cacheDir = Directory('${dir.path}/owlmusic_cache');
       if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
 
-      final file = File('${cacheDir.path}/$videoId.$ext');
-
+      final file = File('${cacheDir.path}/$videoId.m4a');
       if (await file.exists() && await file.length() > 0) {
-        debugPrint('[Player] Cache hit: ${await file.length()} bytes');
         return file;
       }
 
-      final ytClient = yt.YoutubeExplode();
-      try {
-        final stream = ytClient.videos.streamsClient.get(streamInfo);
-        final fileStream = file.openWrite();
-
-        try {
-          await for (final chunk in stream) {
-            fileStream.add(chunk);
-          }
-        } catch (e) {
-          debugPrint('[Player] Download error: $e');
-          await fileStream.close();
-          if (await file.exists()) await file.delete();
-          return null;
-        }
-
-        await fileStream.flush();
-        await fileStream.close();
-
-        final size = await file.length();
-        debugPrint('[Player] Downloaded: $size bytes');
-
-        if (size == 0) {
-          await file.delete();
-          return null;
-        }
-        return file;
-      } finally {
-        ytClient.close();
-      }
+      return await _ytService!.downloadBestAudio(videoId, file);
     } catch (e) {
       debugPrint('[Player] _downloadToTemp error: $e');
       return null;
@@ -215,12 +176,15 @@ class PlayerService {
       final dir = await getTemporaryDirectory();
       final cacheDir = Directory('${dir.path}/owlmusic_cache');
       if (!await cacheDir.exists()) return;
-      final entities = await cacheDir.list().toList();
+      final entities = await cacheDir.list().where((e) => e is File).toList();
       if (entities.length <= 10) return;
-      entities.sort((a, b) =>
-          File(a.path).lastModifiedSync().compareTo(File(b.path).lastModifiedSync()));
+      entities.sort(
+        (a, b) => File(a.path).lastModifiedSync().compareTo(File(b.path).lastModifiedSync()),
+      );
       for (int i = 0; i < entities.length - 5; i++) {
-        try { await entities[i].delete(); } catch (_) {}
+        try {
+          await entities[i].delete();
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -229,6 +193,7 @@ class PlayerService {
   Future<void> pause() async => await _player.pause();
 
   Future<void> stop() async {
+    _playRequestId++;
     await _player.stop();
     _currentIndex = -1;
     _notify();
@@ -307,8 +272,8 @@ class PlayerService {
   }
 
   void toggleRepeat() {
-    _repeatMode = PlaybackRepeatMode
-        .values[(_repeatMode.index + 1) % PlaybackRepeatMode.values.length];
+    _repeatMode =
+        PlaybackRepeatMode.values[(_repeatMode.index + 1) % PlaybackRepeatMode.values.length];
     _notify();
   }
 
