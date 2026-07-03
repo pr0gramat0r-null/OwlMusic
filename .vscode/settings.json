@@ -7,9 +7,9 @@
   "workbench.activityBar.compact": true,
   "workbench.activityBar.location": "top",
   "workbench.activityBar.iconClickBehavior": "toggle",
-  "workbench.colorTheme": "Monokai",
+  "workbench.colorTheme": "Learn with Sumit - Peace of the eye - Dracula version",
   "workbench.editor.decorations.colors": true,
-  "workbench.preferredDarkColorTheme": "Bearded Theme Stained Blue",
+  "workbench.preferredDarkColorTheme": "Learn with Sumit - Peace of the eye - Dracula version",
   "workbench.preferredHighContrastColorTheme": "JetBrains Mono",
   "workbench.preferredHighContrastLightColorTheme": "JetBrains Mono",
   "workbench.preferredLightColorTheme": "Bearded Theme Aquarelle Cymbidium",
@@ -73,5 +73,6 @@
   "editor.fontFamily": "Maple Mono, Consolas, 'Courier New', monospace",
   "editor.mouseWheelZoom": true,
   "editor.formatOnPaste": true,
-  "explorer.compactFolders": true
+  "explorer.compactFolders": true,
+  "workbench.iconTheme": "material-icon-theme"
 }
