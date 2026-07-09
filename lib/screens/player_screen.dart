@@ -114,14 +114,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const Spacer(flex: 1),
-            Container(
-              width: 260,
-              height: 260,
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              children: [
+                const SizedBox(height: 24),
+                Container(
+                  width: 260,
+                  height: 260,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: theme.colorScheme.surfaceContainerHighest,
@@ -342,10 +345,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 icon: const Icon(Icons.volume_up, size: 16),
                 label: const Text('Volume'),
               ),
-            const Spacer(flex: 2),
+            const SizedBox(height: 24),
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
