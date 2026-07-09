@@ -246,6 +246,9 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
                     startIndex: i,
                   ),
                   onDownload: () => appState.downloadTrack(track),
+                  onCancelDownload: () => appState.cancelDownload(track),
+                  onRemove: () =>
+                      appState.removeTrackFromPlaylist(playlist.id, track.id),
                   downloadProgress:
                       appState.getDownloadProgress(track.id),
                   isDownloaded: appState.isTrackDownloaded(track.id),

@@ -26,6 +26,7 @@ class AppState extends ChangeNotifier {
   final Map<String, String> _downloadStatus = {};
   Set<String> _downloadedIds = {};
   final Map<String, String> _downloadedPaths = {};
+  final Set<String> _cancelledDownloads = {};
 
   AppState({
     required this.youtubeService,
@@ -62,11 +63,21 @@ class AppState extends ChangeNotifier {
   }
 
   void _onDownloadProgress(String trackId, double progress, String status) {
+    if (_cancelledDownloads.contains(trackId)) return;
     _downloadProgress[trackId] = progress;
     _downloadStatus[trackId] = status;
     if (progress >= 1.0) {
       _downloadedIds.add(trackId);
     }
+    notifyListeners();
+  }
+
+  void cancelDownload(Track track) {
+    downloader.cancelDownload(track.id);
+    _cancelledDownloads.add(track.id);
+    _downloadProgress.remove(track.id);
+    _downloadStatus.remove(track.id);
+    _downloadedIds.remove(track.id);
     notifyListeners();
   }
 

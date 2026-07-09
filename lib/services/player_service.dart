@@ -142,55 +142,38 @@ class PlayerService {
       }
     }
 
-    final tempFile = await _downloadToTemp(videoId);
-    if (requestId != _playRequestId) return true;
-
-    if (tempFile != null) {
-      debugPrint('[Player] Opening cached file: ${tempFile.path}');
-      await _player.open(mk.Media(tempFile.path));
-      return true;
-    }
-
+    // Stream directly for instant playback (no full pre-download).
     final streamUrl = await _ytService?.getStreamUrl(videoId);
     if (requestId != _playRequestId) return true;
-    if (streamUrl == null || streamUrl.isEmpty) {
-      return false;
+    if (streamUrl != null && streamUrl.isNotEmpty) {
+      debugPrint('[Player] Streaming: $videoId');
+      await _player.open(mk.Media(streamUrl));
+      if (requestId != _playRequestId) return true;
+      unawaited(_precacheInBackground(videoId));
+      return true;
     }
-
-    debugPrint('[Player] Fallback to stream URL');
-    await _player.open(mk.Media(streamUrl));
-    return true;
+    return false;
   }
 
-  final Map<String, Future<File?>> _inflightDownloads = {};
-
-  Future<File?> _downloadToTemp(String videoId) async {
-    if (_ytService == null) return null;
-
+  Future<void> _precacheInBackground(String videoId) async {
+    if (_inflightDownloads.containsKey(videoId)) return;
     try {
       final dir = await getTemporaryDirectory();
       final cacheDir = Directory('${dir.path}/owlmusic_cache');
       if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
-
       final file = File('${cacheDir.path}/$videoId.m4a');
-      if (await file.exists() && await file.length() > 0) {
-        return file;
-      }
-
-      final existing = _inflightDownloads[videoId];
-      if (existing != null) return await existing;
+      if (await file.exists() && await file.length() > 0) return;
       final future = _ytService!.downloadBestAudio(videoId, file);
       _inflightDownloads[videoId] = future;
       try {
-        return await future;
+        await future;
       } finally {
         _inflightDownloads.remove(videoId);
       }
-    } catch (e) {
-      debugPrint('[Player] _downloadToTemp error: $e');
-      return null;
-    }
+    } catch (_) {}
   }
+
+  final Map<String, Future<File?>> _inflightDownloads = {};
 
   Future<void> _cleanOldCache() async {
     try {
