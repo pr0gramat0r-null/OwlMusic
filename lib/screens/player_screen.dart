@@ -15,6 +15,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double _volume = 1.0;
   bool _showVolume = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _volume = context.read<AppState>().playerService.volume;
+  }
+
   String _formatDuration(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -90,6 +96,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.stop_rounded),
+            onPressed: () => player.stop(),
+            tooltip: 'Stop',
+          ),
+          IconButton(
             icon: const Icon(Icons.share_rounded),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -103,14 +114,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const Spacer(flex: 1),
-            Container(
-              width: 260,
-              height: 260,
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              children: [
+                const SizedBox(height: 24),
+                Container(
+                  width: 260,
+                  height: 260,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: theme.colorScheme.surfaceContainerHighest,
@@ -331,10 +345,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 icon: const Icon(Icons.volume_up, size: 16),
                 label: const Text('Volume'),
               ),
-            const Spacer(flex: 2),
+            const SizedBox(height: 24),
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

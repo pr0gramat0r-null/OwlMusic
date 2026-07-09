@@ -25,6 +25,7 @@ class AppState extends ChangeNotifier {
   final Map<String, double> _downloadProgress = {};
   final Map<String, String> _downloadStatus = {};
   Set<String> _downloadedIds = {};
+  final Map<String, String> _downloadedPaths = {};
 
   AppState({
     required this.youtubeService,
@@ -54,6 +55,7 @@ class AppState extends ChangeNotifier {
   String getDownloadStatus(String trackId) =>
       _downloadStatus[trackId] ?? '';
   bool isTrackDownloaded(String trackId) => _downloadedIds.contains(trackId);
+  String? getLocalPath(String trackId) => _downloadedPaths[trackId];
 
   void _onPlayerStateChanged() {
     notifyListeners();
@@ -113,17 +115,25 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> playTrack(Track track) async {
-    await playerService.play(track);
-    _addToHistory(track);
+    final enriched = _enrich(track);
+    await playerService.play(enriched);
+    _addToHistory(enriched);
     notifyListeners();
   }
 
   Future<void> playPlaylist(List<Track> tracks, {int startIndex = 0}) async {
-    await playerService.setQueue(tracks, startIndex: startIndex);
-    if (tracks.isNotEmpty && startIndex < tracks.length) {
-      _addToHistory(tracks[startIndex]);
+    final enriched = tracks.map(_enrich).toList();
+    await playerService.setQueue(enriched, startIndex: startIndex);
+    if (enriched.isNotEmpty && startIndex < enriched.length) {
+      _addToHistory(enriched[startIndex]);
     }
     notifyListeners();
+  }
+
+  Track _enrich(Track track) {
+    final path = _downloadedPaths[track.id];
+    if (path == null) return track;
+    return track.copyWith(downloaded: true, localPath: path);
   }
 
   void _addToHistory(Track track) {
@@ -147,6 +157,7 @@ class AppState extends ChangeNotifier {
     final path = await downloader.downloadTrack(track);
     if (path != null) {
       _downloadedIds.add(track.id);
+      _downloadedPaths[track.id] = path;
       _saveDownloadedIds();
       notifyListeners();
     }
@@ -239,8 +250,16 @@ class AppState extends ChangeNotifier {
       final dir = await _getAppDir();
       final file = File('${dir.path}/downloaded.json');
       if (await file.exists()) {
-        final list = jsonDecode(await file.readAsString()) as List;
-        _downloadedIds = list.cast<String>().toSet();
+        final data = jsonDecode(await file.readAsString());
+        if (data is Map) {
+          data.forEach((k, v) {
+            final id = k.toString();
+            _downloadedIds.add(id);
+            if (v != null) _downloadedPaths[id] = v.toString();
+          });
+        } else if (data is List) {
+          _downloadedIds = data.cast<String>().toSet();
+        }
       }
     } catch (_) {}
   }
@@ -249,7 +268,9 @@ class AppState extends ChangeNotifier {
     try {
       final dir = await _getAppDir();
       final file = File('${dir.path}/downloaded.json');
-      await file.writeAsString(jsonEncode(_downloadedIds.toList()));
+      await file.writeAsString(jsonEncode(
+        _downloadedPaths.map((k, v) => MapEntry(k, v)),
+      ));
     } catch (_) {}
   }
 

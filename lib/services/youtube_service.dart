@@ -194,10 +194,15 @@ class YouTubeService {
       final streamInfo = pickBestAudio(manifest);
       if (streamInfo == null) return null;
 
-      final tmpPath = '${destination.path}.part';
+      final tmpPath =
+          '${destination.path}.${DateTime.now().microsecondsSinceEpoch}.part';
       final tmpFile = File(tmpPath);
       if (await tmpFile.exists()) {
-        await tmpFile.delete();
+        try {
+          await tmpFile.delete();
+        } on FileSystemException {
+          return null;
+        }
       }
 
       final fileStream = tmpFile.openWrite();
@@ -224,9 +229,26 @@ class YouTubeService {
       }
 
       if (await destination.exists()) {
-        await destination.delete();
+        try {
+          await destination.delete();
+        } on FileSystemException {
+          // A previous download already finalized the file; reuse it.
+          onProgress?.call(1.0);
+          return destination;
+        }
       }
-      await tmpFile.rename(destination.path);
+      try {
+        await tmpFile.rename(destination.path);
+      } on FileSystemException {
+        if (await destination.exists() && await destination.length() > 0) {
+          try {
+            await tmpFile.delete();
+          } catch (_) {}
+          onProgress?.call(1.0);
+          return destination;
+        }
+        return null;
+      }
       onProgress?.call(1.0);
       return destination;
     } catch (e) {

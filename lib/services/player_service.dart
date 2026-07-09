@@ -131,6 +131,17 @@ class PlayerService {
   }
 
   Future<bool> _openBestSource(String videoId, int requestId) async {
+    final track = _queue[_currentIndex];
+    if (track.localPath != null) {
+      final local = File(track.localPath!);
+      if (await local.exists() && await local.length() > 0) {
+        debugPrint('[Player] Opening local file: ${track.localPath}');
+        await _player.open(mk.Media(track.localPath!));
+        if (requestId != _playRequestId) return true;
+        return true;
+      }
+    }
+
     final tempFile = await _downloadToTemp(videoId);
     if (requestId != _playRequestId) return true;
 
@@ -151,6 +162,8 @@ class PlayerService {
     return true;
   }
 
+  final Map<String, Future<File?>> _inflightDownloads = {};
+
   Future<File?> _downloadToTemp(String videoId) async {
     if (_ytService == null) return null;
 
@@ -164,7 +177,15 @@ class PlayerService {
         return file;
       }
 
-      return await _ytService!.downloadBestAudio(videoId, file);
+      final existing = _inflightDownloads[videoId];
+      if (existing != null) return await existing;
+      final future = _ytService!.downloadBestAudio(videoId, file);
+      _inflightDownloads[videoId] = future;
+      try {
+        return await future;
+      } finally {
+        _inflightDownloads.remove(videoId);
+      }
     } catch (e) {
       debugPrint('[Player] _downloadToTemp error: $e');
       return null;
