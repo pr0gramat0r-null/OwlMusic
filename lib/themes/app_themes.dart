@@ -3,6 +3,21 @@ import 'package:flutter/services.dart';
 import 'app_colors.dart';
 
 class AppThemes {
+  static TextTheme _textTheme(Color onSurface) {
+    const base = TextTheme(
+      displaySmall: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+      headlineSmall: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+      titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: 0.2),
+      titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, letterSpacing: 0.3),
+      bodyLarge: TextStyle(fontSize: 16, height: 1.4),
+      bodyMedium: TextStyle(fontSize: 15, height: 1.35),
+      bodySmall: TextStyle(fontSize: 13, height: 1.3),
+      labelLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+    );
+    return base.apply(bodyColor: onSurface, displayColor: onSurface);
+  }
+
   static ThemeData darkTheme() {
     return ThemeData(
       brightness: Brightness.dark,
@@ -25,6 +40,7 @@ class AppThemes {
         outlineVariant: DarkPalette.outlineVariant,
       ),
       scaffoldBackgroundColor: DarkPalette.background,
+      textTheme: _textTheme(DarkPalette.onSurface),
       appBarTheme: AppBarTheme(
         backgroundColor: DarkPalette.surface,
         foregroundColor: DarkPalette.onSurface,
@@ -138,6 +154,7 @@ class AppThemes {
         outlineVariant: LightPalette.outlineVariant,
       ),
       scaffoldBackgroundColor: LightPalette.background,
+      textTheme: _textTheme(LightPalette.onSurface),
       appBarTheme: AppBarTheme(
         backgroundColor: LightPalette.surface,
         foregroundColor: LightPalette.onSurface,

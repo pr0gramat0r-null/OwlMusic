@@ -48,6 +48,19 @@ class YouTubeService {
     _yt = yt.YoutubeExplode(yt.YoutubeHttpClient(_BrowserHttpClient()));
   }
 
+  final Map<String, StreamSubscription<List<int>>> _activeDownloads = {};
+  final Map<String, Completer<void>> _activeCompleters = {};
+  final Map<String, String> _activeTempFiles = {};
+  final Set<String> _cancelled = {};
+
+  void cancelDownload(String videoId) {
+    if (!_activeDownloads.containsKey(videoId)) return;
+    _cancelled.add(videoId);
+    _activeDownloads[videoId]?.cancel();
+    final completer = _activeCompleters[videoId];
+    if (completer != null && !completer.isCompleted) completer.complete();
+  }
+
   Future<void> _throttle() async {
     if (_lastRequestTime != null) {
       final diff = DateTime.now().difference(_lastRequestTime!);
@@ -188,14 +201,18 @@ class YouTubeService {
     File destination, {
     void Function(double progress)? onProgress,
   }) async {
+    if (_cancelled.contains(videoId)) {
+      _cancelled.remove(videoId);
+      return null;
+    }
+
     try {
       final manifest = await getManifest(videoId);
       if (manifest == null) return null;
       final streamInfo = pickBestAudio(manifest);
       if (streamInfo == null) return null;
 
-      final tmpPath =
-          '${destination.path}.${DateTime.now().microsecondsSinceEpoch}.part';
+      final tmpPath = '${destination.path}.part';
       final tmpFile = File(tmpPath);
       if (await tmpFile.exists()) {
         try {
@@ -209,19 +226,49 @@ class YouTubeService {
       final totalBytes = streamInfo.size.totalBytes;
       var downloadedBytes = 0;
 
+      final completer = Completer<void>();
+      _activeCompleters[videoId] = completer;
+
       try {
         final stream = _yt.videos.streamsClient.get(streamInfo);
-        await for (final chunk in stream) {
-          fileStream.add(chunk);
-          downloadedBytes += chunk.length;
-          if (totalBytes > 0 && onProgress != null) {
-            final progress = downloadedBytes / totalBytes;
-            onProgress(progress.clamp(0.0, 1.0));
-          }
-        }
+        late StreamSubscription<List<int>> sub;
+        sub = stream.listen(
+          (chunk) {
+            if (_cancelled.contains(videoId)) {
+              if (!completer.isCompleted) completer.complete();
+              return;
+            }
+            fileStream.add(chunk);
+            downloadedBytes += chunk.length;
+            if (totalBytes > 0 && onProgress != null) {
+              onProgress((downloadedBytes / totalBytes).clamp(0.0, 1.0));
+            }
+          },
+          onDone: () {
+            if (!completer.isCompleted) completer.complete();
+          },
+          onError: (e) {
+            if (!completer.isCompleted) completer.completeError(e);
+          },
+          cancelOnError: true,
+        );
+        _activeDownloads[videoId] = sub;
+        _activeTempFiles[videoId] = tmpPath;
+        await completer.future;
       } finally {
+        _activeDownloads.remove(videoId);
+        _activeCompleters.remove(videoId);
+        _activeTempFiles.remove(videoId);
         await fileStream.flush();
         await fileStream.close();
+      }
+
+      if (_cancelled.contains(videoId)) {
+        _cancelled.remove(videoId);
+        try {
+          await tmpFile.delete();
+        } catch (_) {}
+        return null;
       }
 
       if (!await tmpFile.exists() || await tmpFile.length() == 0) {
@@ -232,9 +279,11 @@ class YouTubeService {
         try {
           await destination.delete();
         } on FileSystemException {
-          // A previous download already finalized the file; reuse it.
-          onProgress?.call(1.0);
-          return destination;
+          if (await destination.length() > 0) {
+            onProgress?.call(1.0);
+            return destination;
+          }
+          return null;
         }
       }
       try {
@@ -291,6 +340,13 @@ class YouTubeService {
   }
 
   void dispose() {
+    for (final sub in _activeDownloads.values) {
+      sub.cancel();
+    }
+    _activeDownloads.clear();
+    _activeCompleters.clear();
+    _activeTempFiles.clear();
+    _cancelled.clear();
     _yt.close();
   }
 }

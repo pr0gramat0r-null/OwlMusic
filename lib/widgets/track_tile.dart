@@ -8,6 +8,8 @@ class TrackTile extends StatelessWidget {
   final VoidCallback? onPlay;
   final VoidCallback? onAddToPlaylist;
   final VoidCallback? onDownload;
+  final VoidCallback? onCancelDownload;
+  final VoidCallback? onRemove;
   final bool isPlaying;
   final double downloadProgress;
   final bool isDownloaded;
@@ -19,6 +21,8 @@ class TrackTile extends StatelessWidget {
     this.onPlay,
     this.onAddToPlaylist,
     this.onDownload,
+    this.onCancelDownload,
+    this.onRemove,
     this.isPlaying = false,
     this.downloadProgress = 0,
     this.isDownloaded = false,
@@ -131,7 +135,18 @@ class TrackTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                if (isDownloaded)
+                if (isDownloading)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    onPressed: onCancelDownload,
+                    tooltip: 'Cancel download',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                  )
+                else if (isDownloaded)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Icon(
@@ -140,23 +155,22 @@ class TrackTile extends StatelessWidget {
                       color: theme.colorScheme.primary,
                     ),
                   )
-                else if (isDownloading)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        value: downloadProgress,
-                      ),
-                    ),
-                  )
                 else if (onDownload != null)
                   IconButton(
                     icon: const Icon(Icons.download_outlined, size: 20),
                     onPressed: onDownload,
                     tooltip: 'Download',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                  ),
+                if (onRemove != null)
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline, size: 20),
+                    onPressed: onRemove,
+                    tooltip: 'Remove from playlist',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 32,

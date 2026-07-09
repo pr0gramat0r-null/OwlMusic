@@ -19,6 +19,10 @@ class Downloader {
     _onProgress = callback;
   }
 
+  void cancelDownload(String trackId) {
+    _ytService?.cancelDownload(trackId);
+  }
+
   void _report(String trackId, double progress, String status) {
     _onProgress?.call(trackId, progress, status);
   }

@@ -164,6 +164,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 _showAddToPlaylistDialog(track),
                             onDownload: () =>
                                 appState.downloadTrack(track),
+                            onCancelDownload: () =>
+                                appState.cancelDownload(track),
                             downloadProgress: appState
                                 .getDownloadProgress(track.id),
                             isDownloaded:
@@ -246,6 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 isPlaying: appState.currentTrack?.id == track.id,
                 onPlay: () => appState.playTrack(track),
                 onDownload: () => appState.downloadTrack(track),
+                onCancelDownload: () => appState.cancelDownload(track),
                 downloadProgress:
                     appState.getDownloadProgress(track.id),
                 isDownloaded: appState.isTrackDownloaded(track.id),
