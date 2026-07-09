@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/track.dart';
+import '../models/playlist.dart';
 import '../services/app_state.dart';
 import '../widgets/playlist_tile.dart';
 import '../widgets/track_tile.dart';
@@ -184,7 +185,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
     );
   }
 
-  Widget _buildPlaylistDetail(dynamic playlist, AppState appState) {
+  Widget _buildPlaylistDetail(Playlist playlist, AppState appState) {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(

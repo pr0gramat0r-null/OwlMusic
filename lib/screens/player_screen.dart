@@ -15,6 +15,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double _volume = 1.0;
   bool _showVolume = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _volume = context.read<AppState>().playerService.volume;
+  }
+
   String _formatDuration(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -89,6 +95,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
         title: const Text('Now Playing'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.stop_rounded),
+            onPressed: () => player.stop(),
+            tooltip: 'Stop',
+          ),
           IconButton(
             icon: const Icon(Icons.share_rounded),
             onPressed: () {

@@ -60,9 +60,9 @@ class Playlist {
   String get totalDurationText {
     final d = totalDuration;
     final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final m = d.inMinutes.remainder(60);
     if (h > 0) {
-      return '$h:$m';
+      return '$h h ${m.toString().padLeft(2, '0')} min';
     }
     return '${d.inMinutes} min';
   }

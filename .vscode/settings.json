@@ -5,7 +5,7 @@
   "editor.minimap.side": "right",
   "workbench.activityBar.autoHide": false,
   "workbench.activityBar.compact": true,
-  "workbench.activityBar.location": "top",
+  "workbench.activityBar.location": "default",
   "workbench.activityBar.iconClickBehavior": "toggle",
   "workbench.colorTheme": "Learn with Sumit - Peace of the eye - Dracula version",
   "workbench.editor.decorations.colors": true,

@@ -131,6 +131,17 @@ class PlayerService {
   }
 
   Future<bool> _openBestSource(String videoId, int requestId) async {
+    final track = _queue[_currentIndex];
+    if (track.localPath != null) {
+      final local = File(track.localPath!);
+      if (await local.exists() && await local.length() > 0) {
+        debugPrint('[Player] Opening local file: ${track.localPath}');
+        await _player.open(mk.Media(track.localPath!));
+        if (requestId != _playRequestId) return true;
+        return true;
+      }
+    }
+
     final tempFile = await _downloadToTemp(videoId);
     if (requestId != _playRequestId) return true;
 

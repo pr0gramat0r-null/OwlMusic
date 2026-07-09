@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:media_kit/media_kit.dart' hide Track;
 import 'services/app_state.dart';
 import 'services/youtube_service.dart';
 import 'services/playlist_manager.dart';
@@ -10,6 +10,7 @@ import 'services/downloader.dart';
 import 'screens/home_screen.dart';
 import 'screens/playlist_screen.dart';
 import 'screens/player_screen.dart';
+import 'models/track.dart';
 import 'themes/app_themes.dart';
 
 void main() async {
@@ -110,7 +111,7 @@ class _MainNavigatorState extends State<MainNavigator> {
     );
   }
 
-  Widget _buildMiniPlayer(AppState appState, dynamic track) {
+  Widget _buildMiniPlayer(AppState appState, Track track) {
     final theme = Theme.of(context);
     final player = appState.playerService;
     final isPlaying = player.isPlaying;
